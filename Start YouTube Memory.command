@@ -28,7 +28,13 @@ echo "Leave this window open while using the app."
 echo "Press Control+C to stop the server."
 echo
 
-node server.mjs
+node server.mjs &
+SERVER_PID=$!
+
+sleep 1
+open "http://localhost:4173" >/dev/null 2>&1
+
+wait "$SERVER_PID"
 
 echo
 echo "Server stopped. You can close this window."

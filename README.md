@@ -14,6 +14,8 @@ node server.mjs
 
 Then open `http://localhost:4173`.
 
+On Mac, you can double-click `Start YouTube Memory.command` instead of typing Terminal commands. Keep the window open while using the app.
+
 When using the server, memories are shared through `memories.json` in this folder. The terminal also prints Wi-Fi URLs like `http://192.168.x.x:4173`; open one of those on your iPhone or another computer on the same network to use the same memory library.
 
 On the server URL, Gemini requests go through the local server at `/api/gemini`. If you change the app code while the server is running, stop it with `Ctrl+C` and run `node server.mjs` again.

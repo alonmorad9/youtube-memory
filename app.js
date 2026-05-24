@@ -152,6 +152,7 @@ async function summarizeAndSave() {
       createdAt: now,
       updatedAt: now,
       tags: [],
+      relatedIds: [],
       summaryLength,
       rawText: result,
       ...normalizeSummary(parsed),
@@ -472,7 +473,7 @@ function memoryCard(memory, query) {
   return `<button class="memory-card${active}" data-id="${escapeHtml(memory.id)}">
     <h3>${highlight(memory.title, query)}</h3>
     ${memory.titleHe ? `<div class="meta hebrew-line" dir="rtl" lang="he">${highlight(memory.titleHe, query)}</div>` : ""}
-    <div class="meta">${date} · ${escapeHtml(memory.category || "Other")} · ${memory.summaryLength === "long" ? "Long" : "Short"}</div>
+    <div class="meta">${date} · ${escapeHtml(memory.category || "Other")} · ${memory.summaryLength === "long" ? "Long" : "Short"}${(memory.relatedIds || []).length ? ` · ${(memory.relatedIds || []).length} linked` : ""}</div>
     <div class="card-summary">${highlight(memory.oneSentence || memory.overview || "", query)}</div>
     <div class="tag-row">${[memory.category, ...(memory.tags || []), ...(memory.tagsHe || []), ...(memory.keywords || []).slice(0, 3)].filter(Boolean).map((tag) => `<span class="tag">${highlight(tag, query)}</span>`).join("")}</div>
   </button>`;
@@ -501,6 +502,14 @@ function memoryDetail(memory, query) {
       <button type="button" id="moveMemoryBtn">Move</button>
       <button type="button" id="newMemoryCategoryBtn">New category</button>
     </div>
+    <div class="link-editor">
+      <label>
+        Link another memory
+        <select id="relatedMemorySelect">${relatedMemoryOptionHtml(memory)}</select>
+      </label>
+      <button type="button" id="linkMemoryBtn">Link</button>
+    </div>
+    ${linkedMemoriesHtml(memory, query)}
     <div class="chips">${[memory.category, ...(memory.tags || []), ...(memory.tagsHe || []), ...(memory.keywords || [])].filter(Boolean).map((tag) => `<span class="chip">${highlight(tag, query)}</span>`).join("")}</div>
   </div>
 
@@ -550,7 +559,9 @@ function wireDetailActions(memory) {
   document.querySelector("#deleteMemoryBtn")?.addEventListener("click", () => {
     const ok = confirm(`Delete "${memory.title}"?`);
     if (!ok) return;
-    memories = memories.filter((item) => item.id !== memory.id);
+    memories = memories
+      .filter((item) => item.id !== memory.id)
+      .map((item) => ({ ...item, relatedIds: (item.relatedIds || []).filter((id) => id !== memory.id) }));
     selectedId = memories[0]?.id ?? null;
     saveMemories();
     render();
@@ -572,6 +583,22 @@ function wireDetailActions(memory) {
     const cleanCategory = addCustomCategory(category);
     if (!cleanCategory) return;
     moveMemoryToCategory(memory.id, cleanCategory);
+  });
+
+  document.querySelector("#linkMemoryBtn")?.addEventListener("click", () => {
+    const relatedId = document.querySelector("#relatedMemorySelect")?.value;
+    if (relatedId) linkMemories(memory.id, relatedId);
+  });
+
+  document.querySelectorAll("[data-related-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedId = button.dataset.relatedId;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-unlink-id]").forEach((button) => {
+    button.addEventListener("click", () => unlinkMemories(memory.id, button.dataset.unlinkId));
   });
 }
 
@@ -627,6 +654,11 @@ function toMarkdown(memory) {
     lines.push("", "## פעולות לביצוע", ...memory.actionItemsHe.map((item) => `- ${item}`));
   }
 
+  const linked = relatedMemories(memory);
+  if (linked.length) {
+    lines.push("", "## Linked Memories", ...linked.map((item) => `- ${item.title} (${item.url})`));
+  }
+
   return lines.filter(Boolean).join("\n");
 }
 
@@ -653,6 +685,7 @@ function searchableText(memory) {
     ...(memory.importantIdeasHe || []),
     ...(memory.actionItems || []),
     ...(memory.actionItemsHe || []),
+    ...relatedMemories(memory).flatMap((item) => [item.title, item.titleHe, item.category]),
     ...(memory.sections || []).flatMap((section) => [
       section.title,
       section.titleHe,
@@ -665,6 +698,76 @@ function searchableText(memory) {
   ]
     .join(" ")
     .toLowerCase();
+}
+
+function relatedMemories(memory) {
+  const ids = new Set(memory.relatedIds || []);
+  return memories.filter((item) => ids.has(item.id));
+}
+
+function relatedMemoryOptionHtml(memory) {
+  const linked = new Set(memory.relatedIds || []);
+  const candidates = memories.filter((item) => item.id !== memory.id && !linked.has(item.id));
+  if (!candidates.length) return `<option value="">No unlinked memories</option>`;
+  return `<option value="">Choose a memory...</option>${candidates
+    .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title || "Untitled video")}</option>`)
+    .join("")}`;
+}
+
+function linkedMemoriesHtml(memory, query) {
+  const linked = relatedMemories(memory);
+  if (!linked.length) {
+    return `<section class="linked-memories"><h3>Linked memories</h3><p class="meta">No linked memories yet.</p></section>`;
+  }
+
+  return `<section class="linked-memories">
+    <h3>Linked memories</h3>
+    <div class="linked-list">
+      ${linked
+        .map(
+          (item) => `<div class="linked-item">
+            <button type="button" data-related-id="${escapeHtml(item.id)}">
+              <span>${highlight(item.title || "Untitled video", query)}</span>
+              <small>${escapeHtml(item.category || "Other")}</small>
+            </button>
+            <button type="button" class="unlink-button" data-unlink-id="${escapeHtml(item.id)}">Unlink</button>
+          </div>`,
+        )
+        .join("")}
+    </div>
+  </section>`;
+}
+
+function linkMemories(firstId, secondId) {
+  if (!firstId || !secondId || firstId === secondId) return;
+  const now = new Date().toISOString();
+  memories = memories.map((memory) => {
+    if (![firstId, secondId].includes(memory.id)) return memory;
+    const otherId = memory.id === firstId ? secondId : firstId;
+    return {
+      ...memory,
+      relatedIds: uniqueList([...(memory.relatedIds || []), otherId]),
+      updatedAt: now,
+    };
+  });
+  saveMemories();
+  render();
+  setStatus("Linked memories.");
+}
+
+function unlinkMemories(firstId, secondId) {
+  const now = new Date().toISOString();
+  memories = memories.map((memory) => {
+    if (![firstId, secondId].includes(memory.id)) return memory;
+    return {
+      ...memory,
+      relatedIds: (memory.relatedIds || []).filter((id) => id !== firstId && id !== secondId),
+      updatedAt: now,
+    };
+  });
+  saveMemories();
+  render();
+  setStatus("Unlinked memories.");
 }
 
 function normalizeCategory(category) {

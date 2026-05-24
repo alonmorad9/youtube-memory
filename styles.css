@@ -258,11 +258,61 @@ textarea:focus {
   color: rgba(255, 255, 255, 0.78);
 }
 
-.category-editor {
+.category-editor,
+.link-editor {
   display: grid;
   grid-template-columns: minmax(180px, 260px) auto auto;
   gap: 8px;
   align-items: end;
+}
+
+.link-editor {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+.linked-memories {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.linked-memories h3 {
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+}
+
+.linked-list {
+  display: grid;
+  gap: 8px;
+}
+
+.linked-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.linked-item button:first-child {
+  height: auto;
+  min-height: 48px;
+  text-align: left;
+  padding: 8px 10px;
+}
+
+.linked-item span,
+.linked-item small {
+  display: block;
+}
+
+.linked-item small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.unlink-button {
+  color: var(--accent-dark);
 }
 
 .search input {
@@ -502,7 +552,9 @@ mark {
   .shell,
   .layout,
   .library-tools,
-  .category-editor {
+  .category-editor,
+  .link-editor,
+  .linked-item {
     grid-template-columns: 1fr;
   }
 

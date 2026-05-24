@@ -1,3 +1,4 @@
 .env
 memories.json
 git-data/
+.DS_Store
